@@ -1,232 +1,234 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Login de Acesso</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 50px;
-    }
-    input {
-      padding: 10px;
-      font-size: 16px;
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 16px;
-      margin-top: 10px;
-    }
-    #mainContent {
-      display: none;
-    }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-    }
-    th, td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      text-align: left;
-    }
-    th {
-      background-color: #F2F2F2;
-    }
-    .admin-buttons {
-      display: none;
-    }
-  </style>
+<meta charset="UTF-8" />
+<title>Login e tabela com Google Sheets</title>
+<style>
+  /* Seu CSS aqui, mantive o original para simplicidade */
+  body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+  input { padding: 10px; font-size: 16px; }
+  button { padding: 10px 20px; font-size: 16px; margin-top: 10px; }
+  #mainContent { display: none; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+  th { background-color: #F2F2F2; }
+  .admin-buttons { display: none; }
+</style>
 </head>
 <body>
-  <div id="loginScreen">
-    <h2>Digite o código do Vendor</h2>
-    <input type="text" id="vendorCodeLogin" placeholder="Código do Vendor">
-    <br>
-    <button onclick="enterSystem()">Entrar</button>
-  </div>
 
-  <div id="mainContent">
-    <h2>Tabela de Dados</h2>
-    <div class="admin-buttons" id="adminButtons">
-      <input type="file" id="inputExcel" accept=".xlsx" onchange="handleFile(event)">
-      <button onclick="exportToExcel()">Exportar para Excel</button>
-    </div>
-    <button onclick="backToLogin()">Voltar</button>
-    <br><br>
+<div id="loginScreen">
+  <h2>Digite o código do Vendor</h2>
+  <input type="text" id="vendorCodeLogin" placeholder="Código do Vendor" />
+  <br />
+  <button onclick="handleLogin()">Entrar</button>
+</div>
 
-    <table id="dataTable">
-      <thead>
-        <tr>
-          <th>Purchasing Document</th>
-          <th>Item</th>
-          <th>Material</th>
-          <th>Description</th>
-          <th>Document Date</th>
-          <th>Vendor</th>
-          <th>Vendor Name</th>
-          <th>Order Qty To Be Delivered</th>
-          <th>Requested Ship Date</th>
-          <th>Last Promise Delivery Date</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
+<div id="mainContent">
+  <h2>Tabela de Dados</h2>
+  <button onclick="signOut()">Sair</button>
+  <br /><br />
+  <table id="dataTable">
+    <thead>
+      <tr>
+        <th>Purchasing Document</th>
+        <th>Item</th>
+        <th>Material</th>
+        <th>Description</th>
+        <th>Document Date</th>
+        <th>Vendor</th>
+        <th>Vendor Name</th>
+        <th>Order Qty To Be Delivered</th>
+        <th>Requested Ship Date</th>
+        <th>Last Promise Delivery Date</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-    import { getDatabase, ref, set, update, onValue, get, child } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
+<script src="https://apis.google.com/js/api.js"></script>
+<script>
+  // Substitua pelos seus valores do Google Cloud Console
+  const CLIENT_ID = 'SEU_CLIENT_ID.apps.googleusercontent.com';
+  const API_KEY = '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';
+  const SPREADSHEET_ID = '1fsZWHgj_0bHT1uYWy03G2pHOwL7zeLbuPAp3vMy9Prc';
+  const SHEET_NAME = 'Atlas';
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyDLf0rKSgfMD956cGGgSIsv56Vbq_FZ3_w",
-      authDomain: "agendamentoatlas-be540.firebaseapp.com",
-      databaseURL: "https://agendamentoatlas-be540-default-rtdb.firebaseio.com",
-      projectId: "agendamentoatlas-be540",
-      storageBucket: "agendamentoatlas-be540.appspot.com",
-      messagingSenderId: "126424910599",
-      appId: "1:126424910599:web:bd9deb2ea0294819ab13a2"
-    };
+  const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    const table = document.querySelector("#dataTable tbody");
-    const adminButtons = document.getElementById("adminButtons");
-    let vendorCode = "";
+  let vendorCode = "";
+  let dataRows = []; // Dados da planilha carregados
 
-    function getRowKey(rowData) {
-      return ${rowData[0]}_${rowData[1]};
+  // Inicializa o cliente Google API
+  function initClient() {
+    gapi.client.init({
+      apiKey: API_KEY,
+      clientId: CLIENT_ID,
+      discoveryDocs: ["https://sheets.googleapis.com/$discovery/rest?version=v4"],
+      scope: SCOPES,
+    }).then(() => {
+      // Pode adicionar listeners aqui, se quiser
+    });
+  }
+
+  // Carrega a biblioteca gapi e inicializa o cliente
+  function handleClientLoad() {
+    gapi.load('client:auth2', initClient);
+  }
+
+  // Função chamada ao clicar em "Entrar"
+  async function handleLogin() {
+    vendorCode = document.getElementById('vendorCodeLogin').value.trim();
+    if (!vendorCode) {
+      alert("Digite um código válido.");
+      return;
     }
 
-    function formatExcelDate(value) {
-      if (typeof value === 'number') {
-        const date = new Date((value - 25569) * 86400 * 1000);
-        return date.toISOString().split('T')[0];
+    // Faz login via OAuth
+    const GoogleAuth = gapi.auth2.getAuthInstance();
+    if (!GoogleAuth.isSignedIn.get()) {
+      try {
+        await GoogleAuth.signIn();
+      } catch (error) {
+        alert('Login cancelado ou erro de autenticação.');
+        return;
       }
-      return value || '';
     }
 
-    function formatExportDate(dateStr) {
-      if (!dateStr) return '';
-      const [year, month, day] = dateStr.split('-');
-      return ${day}.${month}.${year};
+    // Após login, carregamos dados da planilha
+    await loadDataFromSheet();
+
+    // Verifica se vendorCode existe na coluna 'Vendor' (índice 5)
+    const vendors = dataRows.map(row => row[5]);
+    if (vendorCode !== "atlas2025" && !vendors.includes(vendorCode)) {
+      alert("Código inválido. Tente novamente.");
+      return;
     }
 
-    function loadFromFirebase() {
-      onValue(ref(db, "tabela"), (snapshot) => {
-        const data = snapshot.val();
-        table.innerHTML = '';
-        for (const key in data) {
-          const rowData = data[key];
-          if (!vendorCode || rowData.vendor === vendorCode || vendorCode === "atlas2025") {
-            const row = table.insertRow();
-            const values = [
-              rowData.purchasingDocument,
-              rowData.item,
-              rowData.material,
-              rowData.description,
-              rowData.documentDate,
-              rowData.vendor,
-              rowData.vendorName,
-              rowData.orderQtyToBeDelivered,
-              rowData.requestedShipDate
-            ];
-            for (let i = 0; i < values.length; i++) {
-              const cell = row.insertCell();
-              cell.textContent = values[i] || '';
-            }
-            const inputCell = row.insertCell();
-            const input = document.createElement("input");
-            input.type = "date";
-            input.value = rowData.lastPromiseDeliveryDate || '';
-            input.addEventListener("change", () => {
-              update(ref(db, "tabela/" + key), {
-                lastPromiseDeliveryDate: input.value
-              });
-            });
-            inputCell.appendChild(input);
-          }
-        }
+    // Mostra a tabela e oculta o login
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("mainContent").style.display = "block";
+
+    // Preenche tabela
+    renderTable();
+
+  }
+
+  // Faz logout
+  function signOut() {
+    const GoogleAuth = gapi.auth2.getAuthInstance();
+    GoogleAuth.signOut();
+    document.getElementById("mainContent").style.display = "none";
+    document.getElementById("loginScreen").style.display = "block";
+    document.getElementById("vendorCodeLogin").value = "";
+    vendorCode = "";
+    dataRows = [];
+    document.querySelector("#dataTable tbody").innerHTML = "";
+  }
+
+  // Carrega dados da planilha
+  async function loadDataFromSheet() {
+    try {
+      const response = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A2:J`, // pulando cabeçalho
       });
+      dataRows = response.result.values || [];
+    } catch (err) {
+      alert("Erro ao carregar dados da planilha: " + err.message);
+      dataRows = [];
     }
+  }
 
-    window.enterSystem = function () {
-      vendorCode = document.getElementById("vendorCodeLogin").value.trim();
-      if (!vendorCode) return;
-
-      get(ref(db, 'tabela')).then(snapshot => {
-        const data = snapshot.val();
-        const values = Object.values(data || {});
-        const vendorExists = vendorCode === "atlas2025" || values.some(row => row.vendor === vendorCode);
-
-        if (!vendorExists) {
-          alert("Código inválido. Tente novamente.");
-          return;
-        }
-
-        document.getElementById("loginScreen").style.display = "none";
-        document.getElementById("mainContent").style.display = "block";
-        adminButtons.style.display = vendorCode === "atlas2025" ? "block" : "none";
-
-        loadFromFirebase();
-      });
-    };
-
-    window.backToLogin = function () {
-      document.getElementById("mainContent").style.display = "none";
-      document.getElementById("loginScreen").style.display = "block";
-      document.getElementById("vendorCodeLogin").value = "";
-      table.innerHTML = "";
-    };
-
-    window.handleFile = function (e) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-        const updates = {};
-        for (let i = 1; i < json.length; i++) {
-          const row = json[i];
-          const key = getRowKey(row);
-          updates[key] = {
-            purchasingDocument: row[0] || '',
-            item: row[1] || '',
-            material: row[2] || '',
-            description: row[3] || '',
-            documentDate: formatExcelDate(row[4]),
-            vendor: row[5] || '',
-            vendorName: row[6] || '',
-            orderQtyToBeDelivered: row[7] || '',
-            requestedShipDate: formatExcelDate(row[8]),
-            lastPromiseDeliveryDate: formatExcelDate(row[9])
-          };
-        }
-        set(ref(db, "tabela"), updates).then(() => loadFromFirebase());
+  // Atualiza uma célula específica na planilha (linha e coluna 1-based)
+  async function updateSheetCell(rowIndex, colIndex, newValue) {
+    try {
+      const range = `${SHEET_NAME}!${columnToLetter(colIndex)}${rowIndex + 2}`; // +2 pq pulamos cabeçalho e índice 0-based
+      const body = {
+        values: [[newValue]],
       };
-      reader.readAsArrayBuffer(file);
-    };
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: range,
+        valueInputOption: "USER_ENTERED",
+        resource: body,
+      });
+      // Atualiza localmente o dataRows também
+      dataRows[rowIndex][colIndex - 1] = newValue;
+    } catch (err) {
+      alert("Erro ao atualizar célula: " + err.message);
+    }
+  }
 
-    window.exportToExcel = function () {
-      const wb = XLSX.utils.book_new();
-      const rows = [[...document.querySelectorAll("thead th")].map(th => th.textContent)];
-      for (const tr of document.querySelectorAll("tbody tr")) {
-        const row = [];
+  // Converte índice de coluna (1-based) para letra (ex: 1 -> A, 10 -> J)
+  function columnToLetter(column) {
+    let temp, letter = '';
+    while (column > 0) {
+      temp = (column - 1) % 26;
+      letter = String.fromCharCode(temp + 65) + letter;
+      column = (column - temp - 1) / 26;
+    }
+    return letter;
+  }
+
+  // Renderiza a tabela HTML a partir de dataRows filtrando por vendorCode
+  function renderTable() {
+    const tbody = document.querySelector("#dataTable tbody");
+    tbody.innerHTML = "";
+    dataRows.forEach((row, idx) => {
+      if (!vendorCode || row[5] === vendorCode || vendorCode === "atlas2025") {
+        const tr = document.createElement("tr");
+
+        // As 9 primeiras colunas são texto simples
         for (let i = 0; i < 9; i++) {
-          row.push(tr.cells[i].textContent);
+          const td = document.createElement("td");
+          td.textContent = row[i] || '';
+          tr.appendChild(td);
         }
-        const dateValue = tr.cells[9].querySelector("input").value;
-        row.push(formatExportDate(dateValue));
-        rows.push(row);
+
+        // A 10ª coluna é input tipo date editável
+        const td = document.createElement("td");
+        const input = document.createElement("input");
+        input.type = "date";
+
+        // Como a data vem da planilha pode estar no formato "dd/mm/yyyy" ou ISO, vamos tentar normalizar
+        input.value = toInputDateFormat(row[9]);
+        input.addEventListener("change", async () => {
+          // Atualiza na planilha
+          await updateSheetCell(idx, 10, input.value);
+        });
+        td.appendChild(input);
+        tr.appendChild(td);
+
+        tbody.appendChild(tr);
       }
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, "Dados");
-      XLSX.writeFile(wb, "tabela.xlsx");
-    };
-  </script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    });
+  }
+
+  // Formata data para yyyy-mm-dd (input date precisa assim)
+  function toInputDateFormat(dateStr) {
+    if (!dateStr) return "";
+    // Se já está no formato yyyy-mm-dd
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+
+    // Tenta formatar dd/mm/yyyy para yyyy-mm-dd
+    const parts = dateStr.split(/[\/\.]/);
+    if (parts.length === 3) {
+      const [d,m,y] = parts;
+      if (y.length === 4) {
+        return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+      }
+    }
+
+    // Se falhar, retorna vazio
+    return "";
+  }
+
+  // Carrega o cliente Google API ao carregar a página
+  window.onload = handleClientLoad;
+</script>
+
 </body>
 </html>
+git commit -m "primeiro commit"
