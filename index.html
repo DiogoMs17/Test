@@ -1,21 +1,26 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta http-equiv="Content-Security-Policy" content="script-src 'self' https://www.gstatic.com 'unsafe-inline' 'unsafe-eval' blob: data:;">
-<meta charset="UTF-8" />
-<title>Login e tabela com Google Sheets</title>
-<style>
-  /* Seu CSS aqui, mantive o original para simplicidade */
-  body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-  input { padding: 10px; font-size: 16px; }
-  button { padding: 10px 20px; font-size: 16px; margin-top: 10px; }
-  #mainContent { display: none; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-  th { background-color: #F2F2F2; }
-  .admin-buttons { display: none; }
-</style>
-</head>
+  <meta charset="UTF-8" />
+  <title>Login e tabela com Google Sheets</title>
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self' https://www.googleapis.com https://accounts.google.com https://www.gstatic.com;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com https://www.gstatic.com;
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data:;
+    connect-src https://www.googleapis.com https://accounts.google.com;
+  ">
+  <style>
+    /* Seu CSS aqui, mantive o original para simplicidade */
+    body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+    input { padding: 10px; font-size: 16px; }
+    button { padding: 10px 20px; font-size: 16px; margin-top: 10px; }
+    #mainContent { display: none; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #F2F2F2; }
+    .admin-buttons { display: none; }
+  </style>
 <body>
 
 <div id="loginScreen">
